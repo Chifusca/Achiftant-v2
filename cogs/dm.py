@@ -1,6 +1,4 @@
-import aiohttp
-import asyncio
-import discord
+import discord, random
 from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Context
@@ -10,20 +8,29 @@ class Dm(commands.Cog, name="dm"):
         self.bot = bot
 
     @commands.hybrid_command(
-        name="dice",
-        description="Rolls a Dice",
+        name="roll",
+        description="Rolls Dice",
     )
-    async def ping(self, context: Context) -> None:
+    @app_commands.describe(dice="Grab your dice")
+    async def dice(self, context: Context, *, dice: str) -> None:
         """
-        Check if the bot is alive.
+        Rolls dice.
 
         :param context: The hybrid command context.
+        :param question: The dice to be rolled.
         """
+
+        die = [int(i) for i in dice.split("d")]
+        result = die[0] * random.randint(1,die[1])
+        if result == 20 and dice == '1d20':
+            result = f'Crit! {result}'
+
         embed = discord.Embed(
-            title="Result:",
-            description=f"you got a 20!",
+            title="**Result:**",
+            description=f"{result}",
             color=0xBEBEFE,
         )
+        embed.set_footer(text=f"The rolled dice were: {dice}")
         await context.send(embed=embed)
 
 async def setup(bot) -> None:
