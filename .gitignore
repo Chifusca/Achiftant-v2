@@ -1,2 +1,4 @@
 .env
 junk
+__pycache__
+discord.log
