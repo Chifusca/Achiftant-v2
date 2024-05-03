@@ -6,7 +6,6 @@ click==8.1.7
 ConfigParser==7.0.0
 contextlib2==21.6.0
 cryptography==42.0.5
-Cython==3.0.10
 dl==0.1.0
 docutils==0.20.1
 filelock==3.14.0
