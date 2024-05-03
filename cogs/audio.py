@@ -8,7 +8,7 @@ Compatibility with Python 3.5 should be possible if f-strings are removed.
 """
 import re
 
-import discord
+import discord, os, time, threading
 import lavalink
 from discord.ext import commands
 from lavalink.events import TrackStartEvent, QueueEndEvent
@@ -18,6 +18,10 @@ from lavalink.server import LoadType
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
 
+def run_lavalink():
+    os.system("java -jar Lavalink.jar")
+    threading.Thread(target=run_lavalink).start()
+    time.sleep(20)
 
 class LavalinkVoiceClient(discord.VoiceProtocol):
     """
@@ -327,6 +331,5 @@ class Music(commands.Cog):
         await ctx.voice_client.disconnect(force=True)
         await ctx.send('✳ | Disconnected.')
 
-
-def setup(bot):
-    bot.add_cog(Music(bot))
+async def setup(bot) -> None:
+    await bot.add_cog(Music(bot))

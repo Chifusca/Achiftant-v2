@@ -1,30 +1,12 @@
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Logged in as Achiftant v2
-[2024-05-02 17:05:30] [INFO    ] discord_bot: discord.py API version: 2.3.2
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Python version: 3.12.2
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Running on: Windows 10 (nt)
-[2024-05-02 17:05:30] [INFO    ] discord_bot: -------------------
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Loaded extension 'audio'
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Loaded extension 'dm'
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Loaded extension 'fun'
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Loaded extension 'general'
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Loaded extension 'moderation'
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Loaded extension 'owner'
-[2024-05-02 17:05:30] [INFO    ] discord_bot: Loaded extension 'puzzler'
-[2024-05-02 17:43:46] [INFO    ] discord_bot: Executed reload command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:44:27] [INFO    ] discord_bot: Executed sync command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:44:35] [INFO    ] discord_bot: Executed dice command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:47:29] [INFO    ] discord_bot: Executed reload command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:47:34] [INFO    ] discord_bot: Executed dice command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:48:13] [INFO    ] discord_bot: Executed reload command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:48:21] [INFO    ] discord_bot: Executed dice command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:49:03] [INFO    ] discord_bot: Executed reload command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:49:08] [INFO    ] discord_bot: Executed dice command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:49:34] [INFO    ] discord_bot: Executed reload command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:49:41] [INFO    ] discord_bot: Executed sync command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:49:50] [INFO    ] discord_bot: Executed roll command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:51:25] [INFO    ] discord_bot: Executed roll command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 17:51:32] [INFO    ] discord_bot: Executed roll command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 18:06:02] [INFO    ] discord_bot: Executed roll command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 18:06:12] [INFO    ] discord_bot: Executed reload command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 18:07:55] [INFO    ] discord_bot: Executed roll command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
-[2024-05-02 18:08:02] [INFO    ] discord_bot: Executed roll command in ChifTests (ID: 340587402601037834) by .chif (ID: 195410723239624704)
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Logged in as Achiftant v2
+[2024-05-02 20:40:41] [INFO    ] discord_bot: discord.py API version: 2.3.2
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Python version: 3.11.9
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Running on: Windows 10 (nt)
+[2024-05-02 20:40:41] [INFO    ] discord_bot: -------------------
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Loaded extension 'audio'
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Loaded extension 'dm'
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Loaded extension 'fun'
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Loaded extension 'general'
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Loaded extension 'moderation'
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Loaded extension 'owner'
+[2024-05-02 20:40:41] [INFO    ] discord_bot: Loaded extension 'puzzler'
