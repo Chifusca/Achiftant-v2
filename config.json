@@ -1,3 +1,16 @@
 {
-    "prefix": "!"
-  }
+  "bot_prefix": "!",
+  "guild_ids": [340587402601037834],
+  "spotify_api": {
+      "client_id": "your-client-id-here", 
+      "client_secret": "your-client-secret-here"
+  },
+  "nodes": [
+      {
+          "host": "localhost",
+          "port": 2333,
+          "password": "IronManSucks"
+      }
+  ],
+  "owners": [195410723239624704]
+}
