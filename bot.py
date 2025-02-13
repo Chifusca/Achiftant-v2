@@ -2,7 +2,6 @@ import discord
 import wavelink
 import os
 from discord.ext import commands
-from wavelink.ext import spotify
 from dotenv import load_dotenv
 
 
