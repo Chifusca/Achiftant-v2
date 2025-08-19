@@ -22,7 +22,7 @@ async def connect_nodes():
     wavelink.Node(
       identifier="Node1", # This identifier must be unique for all the nodes you are going to use
       uri="localhost:2333", # Protocol (http/s) is required, port must be 443 as it is the one lavalink uses
-      password="IronManSucks"
+      password=""
     )
   ]
 
