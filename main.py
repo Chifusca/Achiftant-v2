@@ -1,4 +1,3 @@
-import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -18,13 +17,14 @@ class Achiftant(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Connect Lavalink Node
-        node = wavelink.Node(
-            uri="http://127.0.0.1:2333",  # Your Lavalink address/port
-            password=LavalinkTOKEN      # Your Lavalink password
+        # Lavalink v3 compatible Node configuration
+        node: wavelink.Node = wavelink.Node(
+            id="MAIN_NODE",
+            uri="http://127.0.0.1:2333",
+            password=LavalinkTOKEN  # Replace with your actual password
         )
-        await wavelink.NodePool.connect(nodes=[node], client=self)
-        
+        await wavelink.NodePool.connect(client=self, nodes=[node])
+
         print("Lavalink node connected successfully.")
 
     async def on_ready(self):
@@ -32,6 +32,7 @@ class Achiftant(commands.Bot):
 
 bot = Achiftant()
 
+# --- Sync commands ---
 @bot.command()
 @commands.is_owner()
 async def sync(ctx: commands.Context):
@@ -55,20 +56,17 @@ async def globalsync(ctx: commands.Context):
 async def play(interaction: discord.Interaction, search: str):
     await interaction.response.defer()
 
-    # Check if user is in a voice channel
     if not interaction.user.voice or not interaction.user.voice.channel:
         await interaction.followup.send("You must be in a voice channel to use this command.")
         return
 
     channel = interaction.user.voice.channel
 
-    # Connect or get existing player
     if not interaction.guild.voice_client:
         vc: wavelink.Player = await channel.connect(cls=wavelink.Player)
     else:
         vc: wavelink.Player = interaction.guild.voice_client
 
-    # Search for tracks using Wavelink v2 syntax (YouTubeTrack search)
     tracks = await wavelink.YouTubeTrack.search(search)
     if not tracks:
         await interaction.followup.send("No tracks found.")
@@ -84,19 +82,28 @@ async def play(interaction: discord.Interaction, search: str):
 async def price(interaction: discord.Interaction, item_name: str):
     await interaction.response.defer()
     cost = await poe_services.get_item_price(item_name)
-    if cost:
+    if cost is not None:
         await interaction.followup.send(f"**{item_name}** is approximately **{cost:.1f} Chaos**.")
     else:
         await interaction.followup.send(f"Could not find price data for **{item_name}**.")
 
-# --- Slash Command: Wiki ---
+# --- Slash Command: Wiki (Rich Card Format) ---
 @bot.tree.command(name="wiki", description="Search the PoE Wiki")
 @app_commands.describe(query="Topic or item to search")
 async def wiki(interaction: discord.Interaction, query: str):
-    url = await poe_services.search_poe_wiki(query)
-    if url:
-        await interaction.response.send_message(f"PoE Wiki entry for **{query}**: {url}")
+    await interaction.response.defer()
+    result = await poe_services.search_poe_wiki_details(query)
+    
+    if result:
+        embed = discord.Embed(
+            title=result["title"],
+            url=result["url"],
+            description=result["summary"],
+            color=discord.Color.dark_gold()
+        )
+        embed.set_footer(text="Official Path of Exile Wiki", icon_url="https://www.poewiki.net/favicon.ico")
+        await interaction.followup.send(embed=embed)
     else:
-        await interaction.response.send_message("No results found on the PoE Wiki.")
-
+        await interaction.followup.send(f"No Wiki results found for **{query}**.")
+        
 bot.run(TOKEN)
