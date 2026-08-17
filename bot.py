@@ -10,7 +10,7 @@ TOKEN = os.getenv('TOKEN')
 LavalinkTOKEN = os.getenv('LavalinkToken')
 intents = discord.Intents.default()
 intents.message_content = True
-bot = discord.Bot(command_prefix="!", intents=intents)
+bot = discord.Client(command_prefix="!", intents=intents)
 
 queues = {}
 voice_clients = {}
@@ -21,7 +21,7 @@ async def connect_nodes():
 
   nodes = [
     wavelink.Node(
-      identifier="Node1", # This identifier must be unique for all the nodes you are going to use
+      #identifier="Node1", # This identifier must be unique for all the nodes you are going to use
       uri="localhost:2333", # Protocol (http/s) is required, port must be 443 as it is the one lavalink uses
       password=LavalinkTOKEN
     )
