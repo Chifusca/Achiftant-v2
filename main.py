@@ -18,12 +18,12 @@ class Achiftant(commands.Bot):
 
     async def setup_hook(self):
         # Lavalink v3 compatible Node configuration
-        node: wavelink.Node = wavelink.Node(
-            id="MAIN_NODE",
+        node = wavelink.Node(
+            identifier="MAIN_NODE",
             uri="http://127.0.0.1:2333",
             password=LavalinkTOKEN  # Replace with your actual password
         )
-        await wavelink.NodePool.connect(client=self, nodes=[node])
+        await wavelink.Pool.connect(client=self, nodes=[node])
 
         print("Lavalink node connected successfully.")
 
@@ -105,5 +105,5 @@ async def wiki(interaction: discord.Interaction, query: str):
         await interaction.followup.send(embed=embed)
     else:
         await interaction.followup.send(f"No Wiki results found for **{query}**.")
-        
+
 bot.run(TOKEN)
