@@ -18,12 +18,16 @@ class Achiftant(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Connect Lavalink Node
-        node = wavelink.Node(
-            uri="http://127.0.0.1:2333",  # Your Lavalink address/port
-            password=LavalinkTOKEN      # Your Lavalink password
+        # Wavelink v2 Node setup
+        node: wavelink.Node = wavelink.Node(
+            id="MAIN_NODE",
+            host="127.0.0.1",
+            port=2333,
+            password="youshallnotpass",
+            secure=False
         )
-        await wavelink.Pool.connect(nodes=[node], client=self)
+        await wavelink.NodePool.connect(client=self, nodes=[node])
+
         print("Lavalink node connected successfully.")
 
     async def on_ready(self):
