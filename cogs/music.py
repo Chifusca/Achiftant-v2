@@ -90,7 +90,7 @@ class MusicCog(commands.Cog):
 
     # --- Volume command ---
     @commands.command(name="volume", aliases=["vol"])
-    async def volume(ctx: commands.Context, level: int):
+    async def volume(self, ctx: commands.Context, level: int):
         """Prefix command to adjust global player volume (!volume <0-100>)."""
         if not (0 <= level <= 100):
             await ctx.send("Please provide a volume level between 0 and 100.")
@@ -110,7 +110,7 @@ class MusicCog(commands.Cog):
 
     # --- AutoDisconnect Command ---
     @commands.command(name="autodisconnect", aliases=["autodc", "inactivetimeout"])
-    async def auto_disconnect(ctx: commands.Context, seconds: int):
+    async def auto_disconnect(self, ctx: commands.Context, seconds: int):
         """Prefix command to set global empty voice channel auto-disconnect timeout in seconds."""
         if seconds < 0:
             await ctx.send("Please specify a valid time in seconds (0 or greater).")
