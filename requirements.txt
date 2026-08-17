@@ -2,3 +2,4 @@ aiosqlite
 discord.py
 python-dotenv
 wavelink
+aiohttp

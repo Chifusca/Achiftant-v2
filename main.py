@@ -1,9 +1,11 @@
 import asyncio
 import discord
+from discord import app_commands
 from discord.ext import commands
 import wavelink
 import os
 from dotenv import load_dotenv
+import poe_services
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
@@ -29,21 +31,60 @@ class Achiftant(commands.Bot):
 
 bot = Achiftant()
 
+@bot.command()
+@commands.is_owner()
+async def sync(ctx: commands.Context):
+    """Syncs slash commands globally or to the local guild for fast testing."""
+    # Fast instant sync for the current server only (great for development)
+    synced_guild = await bot.tree.sync(guild=ctx.guild)
+    
+    # Global sync (updates across all servers, can take up to 1 hour to propagate)
+    # synced_global = await bot.tree.sync()
+    
+    await ctx.send(f"Synced {len(synced_guild)} slash commands to this server!")
+
 # --- Music Command Example ---
-@bot.command(name="play")
-async def play(ctx: commands.Context, *, search: str):
-    if not ctx.voice_client:
-        vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+@bot.tree.command(name="play" , description="Play a song from YouTube")
+@app_commands.describe(search="The song name or URL to play")
+async def play(interaction: discord.Interaction, search: str):
+    if not interaction.user.voice:
+        await interaction.response.send_message("You are not connected to a voice channel.")
+        return
+
+    if not interaction.guild.voice_client:
+        vc: wavelink.Player = await interaction.user.voice.channel.connect(cls=wavelink.Player)
     else:
-        vc: wavelink.Player = ctx.voice_client
+        vc: wavelink.Player = interaction.guild.voice_client
 
     tracks = await wavelink.Playable.search(search)
     if not tracks:
-        await ctx.send("No tracks found.")
+        await interaction.response.send_message("No tracks found.")
         return
 
     track = tracks[0]
     await vc.play(track)
-    await ctx.send(f"Now playing: **{track.title}**")
+    await interaction.response.send_message(f"Now playing: **{track.title}**")
+
+@bot.tree.command(name="price", description="Check item prices on poe.ninja")
+@app_commands.describe(item_name="The name of the item or currency")
+async def price(interaction: discord.Interaction, item_name: str):
+    # Acknowledge the command if API calls might take a second
+    await interaction.response.defer()
+    
+    cost = await poe_services.get_item_price(item_name)
+    if cost:
+        await interaction.followup.send(f"**{item_name}** is approximately **{cost:.1f} Chaos**.")
+    else:
+        await interaction.followup.send(f"Could not find price data for **{item_name}**.")
+
+# --- Slash Command: Wiki ---
+@bot.tree.command(name="wiki", description="Search the PoE Wiki")
+@app_commands.describe(query="Topic or item to search")
+async def wiki(interaction: discord.Interaction, query: str):
+    url = await poe_services.search_poe_wiki(query)
+    if url:
+        await interaction.response.send_message(f"PoE Wiki entry for **{query}**: {url}")
+    else:
+        await interaction.response.send_message("No results found on the PoE Wiki.")
 
 bot.run(TOKEN)
