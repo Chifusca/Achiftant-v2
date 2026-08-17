@@ -60,19 +60,22 @@ async def play(interaction: discord.Interaction, search: str):
         await interaction.followup.send("You must be in a voice channel to use this command.")
         return
 
-    channel = interaction.user.voice.channel
+    # In Wavelink v3, fetch or join the voice client using interaction.user.voice.channel
+    vc: wavelink.Player = interaction.guild.voice_client  # type: ignore
+    if not vc:
+        try:
+            vc = await interaction.user.voice.channel.connect(cls=wavelink.Player)
+        except Exception as e:
+            await interaction.followup.send(f"Could not connect to voice channel: {e}")
+            return
 
-    if not interaction.guild.voice_client:
-        vc: wavelink.Player = await channel.connect(cls=wavelink.Player)
-    else:
-        vc: wavelink.Player = interaction.guild.voice_client
-
-    tracks = await wavelink.YouTubeTrack.search(search)
+    # Wavelink v3 track search syntax
+    tracks: wavelink.Search = await wavelink.Playable.search(search)
     if not tracks:
         await interaction.followup.send("No tracks found.")
         return
 
-    track = tracks[0]
+    track = tracks[0] if isinstance(tracks, list) else tracks.tracks[0]
     await vc.play(track)
     await interaction.followup.send(f"Now playing: **{track.title}**")
 
