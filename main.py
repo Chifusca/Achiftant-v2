@@ -159,15 +159,86 @@ async def play(interaction: discord.Interaction, search: str):
         await interaction.followup.send(embed=embed, view=view)
 
 # --- Slash Command: Price ---
+# --- Dropdown Menu for Item Selection ---
+class ItemSelect(discord.ui.Select):
+    def __init__(self, matches: list):
+        # Limit dropdown options to max 25 items (Discord limit)
+        options = [
+            discord.SelectOption(
+                label=item["name"][:100],
+                description=f"{item['category']} | {item['chaos_value']:,.1f}c",
+                value=str(index)
+            )
+            for index, item in enumerate(matches[:25])
+        ]
+        super().__init__(placeholder="Select the exact item...", min_values=1, max_values=1, options=options)
+        self.matches = matches
+
+    async def callback(self, interaction: discord.Interaction):
+        selected_index = int(self.values[0])
+        data = self.matches[selected_index]
+        embed = build_price_embed(data)
+        
+        # Update the message replacing the dropdown with the final result card
+        await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+class ItemSelectView(discord.ui.View):
+    def __init__(self, matches: list):
+        super().__init__(timeout=60)
+        self.add_item(ItemSelect(matches))
+
+# --- Helper function to build price card ---
+def build_price_embed(data: dict) -> discord.Embed:
+    embed = discord.Embed(
+        title=f"💰 Price Check: {data['name']}",
+        color=discord.Color.gold()
+    )
+    
+    chaos_fmt = f"{data['chaos_value']:,.1f} c"
+    divine_fmt = f"{data['divine_value']:.2f} Div" if data['divine_value'] >= 0.05 else "—"
+    
+    embed.add_field(name="Chaos Value", value=f"**{chaos_fmt}**", inline=True)
+    embed.add_field(name="Divine Value", value=f"**{divine_fmt}**", inline=True)
+    embed.add_field(name="Category", value=data['category'], inline=True)
+    
+    if data.get("icon"):
+        embed.set_thumbnail(url=data["icon"])
+        
+    embed.set_footer(
+        text=f"League: {data['league']} | 1 Div ≈ {data['divine_rate']:.0f}c | Source: poe.ninja"
+    )
+    return embed
+
 @bot.tree.command(name="price", description="Check item prices on poe.ninja")
-@app_commands.describe(item_name="The name of the item or currency")
+@app_commands.describe(item_name="The name of the item or currency (e.g. divine, mageblood, headhunter)")
 async def price(interaction: discord.Interaction, item_name: str):
     await interaction.response.defer()
-    cost = await poe_services.get_item_price(item_name)
-    if cost is not None:
-        await interaction.followup.send(f"**{item_name}** is approximately **{cost:.1f} Chaos**.")
+    
+    result = await poe_services.search_poe_ninja_items(item_name)
+    matches = result.get("matches", [])
+    
+    if not matches:
+        await interaction.followup.send(
+            f"❌ Could not find any price data for **'{item_name}'** in `{result['league']}` on poe.ninja."
+        )
+        return
+
+    # Check for an exact match (e.g., user typed "divine orb" exactly)
+    exact_match = next((item for item in matches if item["name"].lower() == item_name.strip().lower()), None)
+
+    if exact_match:
+        embed = build_price_embed(exact_match)
+        await interaction.followup.send(embed=embed)
+    elif len(matches) == 1:
+        embed = build_price_embed(matches[0])
+        await interaction.followup.send(embed=embed)
     else:
-        await interaction.followup.send(f"Could not find price data for **{item_name}**.")
+        # Multiple matches found: Show dropdown menu
+        view = ItemSelectView(matches)
+        await interaction.followup.send(
+            f"🔍 Found **{len(matches)}** items matching **'{item_name}'**. Please select one below:",
+            view=view
+        )
 
 # --- Slash Command: Wiki (Rich Card Format) ---
 @bot.tree.command(name="wiki", description="Search the PoE Wiki")
