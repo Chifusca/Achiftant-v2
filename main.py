@@ -109,7 +109,7 @@ def create_now_playing_embed(track: wavelink.Playable, requester: discord.Member
     return embed
 
 # --- Slash Command: Play ---
-@bot.tree.command(name="play", description="Play a song from YouTube")
+@bot.tree.command(name="play", description="Play a track or add it to the queue")
 @app_commands.describe(search="Song title or URL")
 async def play(interaction: discord.Interaction, search: str):
     await interaction.response.defer()
@@ -117,7 +117,7 @@ async def play(interaction: discord.Interaction, search: str):
     if not interaction.user.voice or not interaction.user.voice.channel:
         await interaction.followup.send("You must be in a voice channel to use this command.")
         return
-    
+
     channel = interaction.user.voice.channel
 
     # Fetch existing player or connect to channel
@@ -140,16 +140,32 @@ async def play(interaction: discord.Interaction, search: str):
     track = tracks[0] if isinstance(tracks, list) else tracks.tracks[0]
 
     try:
-        await vc.play(track)
-        
-        # Build Embed Card and Attached Button View
-        embed = create_now_playing_embed(track, interaction.user)
-        view = MusicControlView(player=vc)
+        # Check if a track is currently playing or paused
+        if vc.playing or vc.paused:
+            # Add to the queue instead of overriding
+            await vc.queue.put_wait(track)
+            
+            embed = discord.Embed(
+                title="📝 Added to Queue",
+                description=f"[{track.title}]({track.uri})",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Position in Queue", value=f"#{len(vc.queue)}", inline=True)
+            embed.add_field(name="Author", value=track.author or "Unknown", inline=True)
+            if track.artwork:
+                embed.set_thumbnail(url=track.artwork)
 
-        await interaction.followup.send(embed=embed, view=view)
+            await interaction.followup.send(embed=embed)
+        else:
+            # Nothing is playing, start immediately
+            await vc.play(track)
+            
+            embed = create_now_playing_embed(track, interaction.user)
+            view = MusicControlView(player=vc)
+            await interaction.followup.send(embed=embed, view=view)
 
     except wavelink.LavalinkException:
-        # Session reconnect handler
+        # Handle reconnection if Lavalink session expired
         await vc.disconnect()
         vc = await channel.connect(cls=wavelink.Player)
         await vc.play(track)
@@ -158,11 +174,147 @@ async def play(interaction: discord.Interaction, search: str):
         view = MusicControlView(player=vc)
         await interaction.followup.send(embed=embed, view=view)
 
+@bot.tree.command(name="queue", description="Display the currently playing song and upcoming music queue")
+async def queue(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    vc: wavelink.Player = interaction.guild.voice_client  # type: ignore
+
+    # Check if the bot is connected to a voice channel
+    if not vc or not vc.channel:
+        await interaction.followup.send("The bot is not currently connected to a voice channel.")
+        return
+
+    # Check if there is a song playing or items in the queue
+    if not vc.current and len(vc.queue) == 0:
+        await interaction.followup.send("The queue is currently empty and nothing is playing.")
+        return
+
+    embed = discord.Embed(
+        title="🎶 Current Music Queue",
+        color=discord.Color.blurple()
+    )
+
+    # 1. Display currently playing song
+    if vc.current:
+        current_track = vc.current
+        embed.add_field(
+            name="Now Playing",
+            value=f"[{current_track.title}]({current_track.uri}) | `{current_track.author or 'Unknown'}`",
+            inline=False
+        )
+        if current_track.artwork:
+            embed.set_thumbnail(url=current_track.artwork)
+
+    # 2. Display upcoming tracks from vc.queue
+    if len(vc.queue) > 0:
+        upcoming_list = []
+        # Show up to the first 10 upcoming tracks
+        for idx, track in enumerate(list(vc.queue)[:10], start=1):
+            upcoming_list.append(f"`{idx}.` [{track.title}]({track.uri}) — `{track.author or 'Unknown'}`")
+
+        queue_str = "\n".join(upcoming_list)
+
+        # Indicate if there are more tracks beyond the first 10
+        if len(vc.queue) > 10:
+            queue_str += f"\n\n*...and {len(vc.queue) - 10} more track(s)*"
+
+        embed.add_field(
+            name=f"Upcoming Tracks ({len(vc.queue)})",
+            value=queue_str,
+            inline=False
+        )
+    else:
+        embed.add_field(
+            name="Upcoming Tracks",
+            value="No songs queued up next.",
+            inline=False
+        )
+
+    await interaction.followup.send(embed=embed)
+
+# --- Volume command ---
+@bot.command(name="volume", aliases=["vol"])
+async def volume(ctx: commands.Context, level: int):
+    """Prefix command to adjust player volume (!volume <0-100>)."""
+    # Check if the level is within valid bounds
+    if not (0 <= level <= 100):
+        await ctx.send("Please provide a volume level between 0 and 100.")
+        return
+
+    # Fetch the player connected to the guild
+    vc: wavelink.Player = ctx.voice_client  # type: ignore
+
+    # Check connection via vc.channel (Wavelink Player uses .channel instead of .is_connected())
+    if not vc or not vc.channel:
+        await ctx.send("The bot is not currently connected to a voice channel.")
+        return
+
+    if not ctx.author.voice or ctx.author.voice.channel != vc.channel:
+        await ctx.send("You must be in the same voice channel as the bot to change the volume.")
+        return
+
+    # Set volume on the Wavelink player
+    await vc.set_volume(level)
+    await ctx.send(f"🔊 Volume set to **{level}%**")
+
+
 # --- Slash Command: Price ---
-# --- Dropdown Menu for Item Selection ---
+
+POPULAR_LEAGUES = [
+    "Allflame",
+    "Hardcore Allflame",
+    "Standard",
+    "Hardcore",
+    "Solo Self-Found",
+]
+
+class LeagueSelect(discord.ui.Select):
+    def __init__(self):
+        current_league = poe_services.get_active_league()
+        options = [
+            discord.SelectOption(
+                label=league,
+                description=f"Set price check league to {league}",
+                default=(league.lower() == current_league.lower())
+            )
+            for league in POPULAR_LEAGUES
+        ]
+        super().__init__(
+            placeholder="Select a league for price checks...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        selected_league = self.values[0]
+        # Update active league in poe_services
+        poe_services.set_active_league(selected_league)
+        
+        await interaction.response.edit_message(
+            content=f"✅ Default price check league changed to **{selected_league}**!",
+            view=None
+        )
+
+class LeagueSelectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+        self.add_item(LeagueSelect())
+
+# --- Slash Command: Set League ---
+@bot.tree.command(name="setleague", description="Select the default league used for price checking")
+async def set_league(interaction: discord.Interaction):
+    current = poe_services.get_active_league()
+    view = LeagueSelectView()
+    await interaction.response.send_message(
+        f"⚙️ **Current Price Check League:** `{current}`\nSelect a new league from the dropdown below:",
+        view=view,
+        ephemeral=True  # Keeps menu interactions private to the caller
+    )
+
 class ItemSelect(discord.ui.Select):
     def __init__(self, matches: list):
-        # Limit dropdown options to max 25 items (Discord limit)
         options = [
             discord.SelectOption(
                 label=item["name"][:100],
@@ -178,22 +330,20 @@ class ItemSelect(discord.ui.Select):
         selected_index = int(self.values[0])
         data = self.matches[selected_index]
         embed = build_price_embed(data)
-        
-        # Update the message replacing the dropdown with the final result card
         await interaction.response.edit_message(content=None, embed=embed, view=None)
+
 
 class ItemSelectView(discord.ui.View):
     def __init__(self, matches: list):
         super().__init__(timeout=60)
         self.add_item(ItemSelect(matches))
 
-# --- Helper function to build price card ---
+
 def build_price_embed(data: dict) -> discord.Embed:
     embed = discord.Embed(
         title=f"💰 Price Check: {data['name']}",
         color=discord.Color.gold()
     )
-    
     chaos_fmt = f"{data['chaos_value']:,.1f} c"
     divine_fmt = f"{data['divine_value']:.2f} Div" if data['divine_value'] >= 0.05 else "—"
     
@@ -209,21 +359,24 @@ def build_price_embed(data: dict) -> discord.Embed:
     )
     return embed
 
+
 @bot.tree.command(name="price", description="Check item prices on poe.ninja")
-@app_commands.describe(item_name="The name of the item or currency (e.g. divine, mageblood, headhunter)")
-async def price(interaction: discord.Interaction, item_name: str):
+@app_commands.describe(
+    item_name="The name of the item or currency (e.g. divine, mageblood, headhunter)",
+    league="Optional: The league name (e.g. Settlers, Standard, Hardcore). Defaults to current league."
+)
+async def price(interaction: discord.Interaction, item_name: str, league: str = None):
     await interaction.response.defer()
     
-    result = await poe_services.search_poe_ninja_items(item_name)
+    result = await poe_services.search_poe_ninja_items(item_name, league=league)
     matches = result.get("matches", [])
     
     if not matches:
         await interaction.followup.send(
-            f"❌ Could not find any price data for **'{item_name}'** in `{result['league']}` on poe.ninja."
+            f"❌ Could not find any price data for **'{item_name}'** in league `{result['league']}`."
         )
         return
 
-    # Check for an exact match (e.g., user typed "divine orb" exactly)
     exact_match = next((item for item in matches if item["name"].lower() == item_name.strip().lower()), None)
 
     if exact_match:
@@ -233,10 +386,9 @@ async def price(interaction: discord.Interaction, item_name: str):
         embed = build_price_embed(matches[0])
         await interaction.followup.send(embed=embed)
     else:
-        # Multiple matches found: Show dropdown menu
         view = ItemSelectView(matches)
         await interaction.followup.send(
-            f"🔍 Found **{len(matches)}** items matching **'{item_name}'**. Please select one below:",
+            f"🔍 Found **{len(matches)}** matches for **'{item_name}'** in `{result['league']}`. Select one from the menu below:",
             view=view
         )
 
