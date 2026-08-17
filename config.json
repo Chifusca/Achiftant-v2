@@ -12,5 +12,8 @@
           "password": ""
       }
   ],
-  "owners": [195410723239624704]
+  "owners": [195410723239624704],
+
+  "volume": 10,
+  "auto_disconnect_seconds": 15
 }
