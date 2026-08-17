@@ -19,11 +19,22 @@ class Achiftant(commands.Bot):
 
     async def setup_hook(self):
         # Connect Lavalink Node
-        node = wavelink.Node(
-            uri="http://127.0.0.1:2333",  # Your Lavalink address/port
-            password=LavalinkTOKEN      # Your Lavalink password
+        #node = wavelink.Node(
+        #    uri="http://127.0.0.1:2333",  # Your Lavalink address/port
+        #    password=LavalinkTOKEN      # Your Lavalink password
+        #)
+        #await wavelink.Pool.connect(nodes=[node], client=self)
+
+        node: wavelink.Node = wavelink.Node(
+            id="MAIN_NODE",
+            host="127.0.0.1",
+            port=2333,
+            password=LavalinkTOKEN,  # Replace with your actual password
+            secure=False
         )
-        await wavelink.Pool.connect(nodes=[node], client=self)
+        # Connect node in Wavelink v2
+        await wavelink.NodePool.connect(client=self, nodes=[node])
+
         print("Lavalink node connected successfully.")
 
     async def on_ready(self):
@@ -34,43 +45,49 @@ bot = Achiftant()
 @bot.command()
 @commands.is_owner()
 async def sync(ctx: commands.Context):
-    """Syncs slash commands globally or to the local guild for fast testing."""
+    #"""Syncs slash commands globally or to the local guild for fast testing."""
     # Fast instant sync for the current server only (great for development)
-    synced_guild = await bot.tree.sync(guild=ctx.guild)
+    synced = await bot.tree.sync(guild=ctx.guild)
     
     # Global sync (updates across all servers, can take up to 1 hour to propagate)
     # synced_global = await bot.tree.sync()
     
-    await ctx.send(f"Synced {len(synced_guild)} slash commands to this server!")
+    await ctx.send(f"Synced {len(synced)} slash commands to this server!")
 
-# --- Music Command Example ---
-@bot.tree.command(name="play" , description="Play a song from YouTube")
-@app_commands.describe(search="The song name or URL to play")
+# --- Slash Command: Play ---
+@bot.tree.command(name="play", description="Play a song from YouTube")
+@app_commands.describe(search="Song title or URL")
 async def play(interaction: discord.Interaction, search: str):
-    if not interaction.user.voice:
-        await interaction.response.send_message("You are not connected to a voice channel.")
+    await interaction.response.defer()
+
+    # Check if user is in a voice channel
+    if not interaction.user.voice or not interaction.user.voice.channel:
+        await interaction.followup.send("You must be in a voice channel to use this command.")
         return
 
+    channel = interaction.user.voice.channel
+
+    # Connect or get existing player
     if not interaction.guild.voice_client:
-        vc: wavelink.Player = await interaction.user.voice.channel.connect(cls=wavelink.Player)
+        vc: wavelink.Player = await channel.connect(cls=wavelink.Player)
     else:
         vc: wavelink.Player = interaction.guild.voice_client
 
-    tracks = await wavelink.Playable.search(search)
+    # Search for tracks using Wavelink v2 syntax (YouTubeTrack search)
+    tracks = await wavelink.YouTubeTrack.search(search)
     if not tracks:
-        await interaction.response.send_message("No tracks found.")
+        await interaction.followup.send("No tracks found.")
         return
 
     track = tracks[0]
     await vc.play(track)
-    await interaction.response.send_message(f"Now playing: **{track.title}**")
+    await interaction.followup.send(f"Now playing: **{track.title}**")
 
+# --- Slash Command: Price ---
 @bot.tree.command(name="price", description="Check item prices on poe.ninja")
 @app_commands.describe(item_name="The name of the item or currency")
 async def price(interaction: discord.Interaction, item_name: str):
-    # Acknowledge the command if API calls might take a second
     await interaction.response.defer()
-    
     cost = await poe_services.get_item_price(item_name)
     if cost:
         await interaction.followup.send(f"**{item_name}** is approximately **{cost:.1f} Chaos**.")
