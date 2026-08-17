@@ -35,14 +35,19 @@ bot = Achiftant()
 @bot.command()
 @commands.is_owner()
 async def sync(ctx: commands.Context):
-    #"""Syncs slash commands globally or to the local guild for fast testing."""
     # Fast instant sync for the current server only (great for development)
     synced = await bot.tree.sync(guild=ctx.guild)
-    
-    # Global sync (updates across all servers, can take up to 1 hour to propagate)
-    # synced_global = await bot.tree.sync()
-    
+        
     await ctx.send(f"Synced {len(synced)} slash commands to this server!")
+
+@bot.command()
+@commands.is_owner()
+async def globalsync(ctx: commands.Context):
+       
+    # Global sync (updates across all servers, can take up to 1 hour to propagate)
+    synced_global = await bot.tree.sync()
+    
+    await ctx.send(f"Synced {len(synced_global)} slash commands globally!")
 
 # --- Slash Command: Play ---
 @bot.tree.command(name="play", description="Play a song from YouTube")
