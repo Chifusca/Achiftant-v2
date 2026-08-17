@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import wavelink
+import json
 import os
 from dotenv import load_dotenv
 import poe_services
@@ -9,6 +10,29 @@ import poe_services
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
 LavalinkTOKEN = os.getenv('LavalinkToken')
+CONFIG_FILE = os.getenv('CONFIG_FILE', 'config.json')
+
+def load_settings() -> dict:
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_global_volume(volume: int):
+    """Saves the global volume level across all servers."""
+    settings = load_settings()
+    settings["global_volume"] = volume
+    
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(settings, f, indent=4)
+
+def get_global_volume(default: int = 100) -> int:
+    """Retrieves the global volume setting."""
+    settings = load_settings()
+    return settings.get("global_volume", default)
 
 class Achiftant(commands.Bot):
     def __init__(self):
@@ -31,6 +55,12 @@ class Achiftant(commands.Bot):
         print(f"Bot online as {self.user} (ID: {self.user.id})")
 
 bot = Achiftant()
+
+@bot.listen("on_wavelink_track_start")
+async def on_track_start(payload: wavelink.TrackStartEventPayload):
+    player = payload.player
+    if player:
+        await player.set_volume(get_global_volume(default=10))
 
 # --- Sync commands ---
 @bot.command()
@@ -233,30 +263,110 @@ async def queue(interaction: discord.Interaction):
 
     await interaction.followup.send(embed=embed)
 
+# --- Slash Command: Clear Queue ---
+@bot.tree.command(name="clearqueue", description="Clear all upcoming tracks from the queue")
+async def clear_queue(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    vc: wavelink.Player = interaction.guild.voice_client  # type: ignore
+
+    if not vc or not vc.channel:
+        await interaction.followup.send("The bot is not currently connected to a voice channel.")
+        return
+
+    if len(vc.queue) == 0:
+        await interaction.followup.send("The queue is already empty.")
+        return
+
+    # Clear all tracks in the Wavelink queue
+    track_count = len(vc.queue)
+    vc.queue.clear()
+
+    await interaction.followup.send(f"🗑️ Cleared **{track_count}** track(s) from the queue.")
+
+
+# --- Slash Command: Remove Specific Track ---
+@bot.tree.command(name="remove", description="Remove a specific track from the queue by its position")
+@app_commands.describe(index="Position of the track in the queue (e.g., 1 for the next track)")
+async def remove_track(interaction: discord.Interaction, index: app_commands.Range[int, 1, None]):
+    await interaction.response.defer()
+
+    vc: wavelink.Player = interaction.guild.voice_client  # type: ignore
+
+    if not vc or not vc.channel:
+        await interaction.followup.send("The bot is not currently connected to a voice channel.")
+        return
+
+    if len(vc.queue) == 0:
+        await interaction.followup.send("The queue is currently empty.")
+        return
+
+    if index > len(vc.queue):
+        await interaction.followup.send(f"Invalid position. The queue currently has **{len(vc.queue)}** track(s).")
+        return
+
+    # Remove the track at (index - 1) since positions are 1-based in UI
+    removed_track = vc.queue.delete(index - 1)
+
+    if removed_track:
+        await interaction.followup.send(
+            f"❌ Removed **[{removed_track.title}]({removed_track.uri})** from position **#{index}**."
+        )
+    else:
+        await interaction.followup.send("Failed to remove the track from the queue.")
+
+
+# --- Slash Command: Skip To Track ---
+@bot.tree.command(name="skipto", description="Skip directly to a specific track in the queue")
+@app_commands.describe(index="Position of the track in the queue to skip to")
+async def skip_to(interaction: discord.Interaction, index: app_commands.Range[int, 1, None]):
+    await interaction.response.defer()
+
+    vc: wavelink.Player = interaction.guild.voice_client  # type: ignore
+
+    if not vc or not vc.channel:
+        await interaction.followup.send("The bot is not currently connected to a voice channel.")
+        return
+
+    if len(vc.queue) == 0:
+        await interaction.followup.send("The queue is currently empty.")
+        return
+
+    if index > len(vc.queue):
+        await interaction.followup.send(f"Invalid position. The queue currently has **{len(vc.queue)}** track(s).")
+        return
+
+    # Remove all preceding tracks up to index - 1
+    for _ in range(index - 1):
+        vc.queue.delete(0)
+
+    # Skip current track to immediately play target track
+    target_track = vc.queue[0]
+    await vc.skip()
+
+    await interaction.followup.send(
+        f"⏭️ Skipped directly to position **#{index}**: **[{target_track.title}]({target_track.uri})**"
+    )
+
 # --- Volume command ---
 @bot.command(name="volume", aliases=["vol"])
 async def volume(ctx: commands.Context, level: int):
-    """Prefix command to adjust player volume (!volume <0-100>)."""
-    # Check if the level is within valid bounds
+    """Prefix command to adjust global player volume (!volume <0-100>)."""
     if not (0 <= level <= 100):
         await ctx.send("Please provide a volume level between 0 and 100.")
         return
 
-    # Fetch the player connected to the guild
+    # Save to global persistent storage
+    save_global_volume(level)
+
+    # Set volume for the current player calling the command
     vc: wavelink.Player = ctx.voice_client  # type: ignore
 
-    # Check connection via vc.channel (Wavelink Player uses .channel instead of .is_connected())
-    if not vc or not vc.channel:
-        await ctx.send("The bot is not currently connected to a voice channel.")
-        return
-
-    if not ctx.author.voice or ctx.author.voice.channel != vc.channel:
-        await ctx.send("You must be in the same voice channel as the bot to change the volume.")
-        return
-
-    # Set volume on the Wavelink player
-    await vc.set_volume(level)
-    await ctx.send(f"🔊 Volume set to **{level}%**")
+    if vc and vc.channel:
+        await vc.set_volume(level)
+        await ctx.send(f"🔊 Global volume set to **{level}%** and saved across all servers!")
+    else:
+        await ctx.send(f"🔊 Global volume saved to **{level}%**.")
 
 
 # --- Slash Command: Price ---
