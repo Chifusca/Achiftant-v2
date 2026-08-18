@@ -1,9 +1,6 @@
-import discord
+import discord, asyncio, os, wavelink, json
 from discord import app_commands
 from discord.ext import commands
-import wavelink
-import json
-import os
 from dotenv import load_dotenv
 import settings_utils as settings
 
@@ -87,7 +84,6 @@ class MusicCog(commands.Cog):
             print("Lavalink node connected successfully.")
 
     # --- Commands ---
-
     # --- Volume command ---
     @commands.command(name="volume", aliases=["vol"])
     async def volume(self, ctx: commands.Context, level: int):
@@ -354,6 +350,41 @@ class MusicCog(commands.Cog):
             vol = get_setting("volume", 10)
             await player.set_volume(vol)
 
+    @commands.Cog.listener()
+    async def on_voice_state_update(
+        self,
+        member: discord.Member,
+        before: discord.VoiceState,
+        after: discord.VoiceState
+    ):
+        # Ignore bots triggering the event
+        if member.bot:
+            return
+
+        guild = member.guild
+        vc: wavelink.Player = guild.voice_client
+
+        # Check if the bot is connected to a voice channel
+        if not vc or not vc.channel:
+            return
+
+        # Check if the user left the channel the bot is currently in
+        if before.channel == vc.channel and after.channel != vc.channel:
+            # Count non-bot members remaining in the channel
+            human_members = [m for m in vc.channel.members if not m.bot]
+
+            if len(human_members) == 0:
+                auto_disconnect_seconds = get_setting("auto_disconnect_seconds", 0)
+                if auto_disconnect_seconds > 0:
+                    await asyncio.sleep(auto_disconnect_seconds)
+                    
+                    # Re-verify the channel is still empty after the sleep duration
+                    vc_current: wavelink.Player = guild.voice_client
+                    if vc_current and vc_current.channel:
+                        remaining_humans = [m for m in vc_current.channel.members if not m.bot]
+                        if len(remaining_humans) == 0:
+                            await vc_current.disconnect()
+                            print(f"Disconnected from {vc_current.channel.name} after {auto_disconnect_seconds} seconds of inactivity.")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MusicCog(bot))
