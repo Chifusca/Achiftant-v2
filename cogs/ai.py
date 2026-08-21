@@ -1,36 +1,71 @@
+import datetime
+import json
+import os
 import discord
 from discord import app_commands
 from discord.ext import commands
-import aiohttp
+from google import genai
 
-OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-MODEL_NAME = "qwen2.5:1.5b"  # Replace with phi3:mini or llama3.2:1b if desired
+# Configuration constants
+DAILY_LIMIT = 950  # Safe threshold below the 1,000 free-tier limit
+TRACKER_FILE = "gemini_usage_tracker.json"
+MODEL_NAME = "gemini-2.5-flash"  # Lightweight, fast model for chat
 
 # System prompt forcing short, targeted answers focused on tech/gaming
 SYSTEM_PROMPT = (
-    #"You are a helpful gaming and tech assistant inside a Discord bot."
     "You are a veteran Path of Exile theorycrafter. Explain mechanics concisely without fluff."
     "Keep your answers concise, clear, and under 150 words. "
     "Avoid unnecessary fluff or lengthy introductions."
 )
 
-async def query_ollama(prompt: str) -> str:
-    """Sends a non-blocking request to the local Ollama instance."""
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": f"{SYSTEM_PROMPT}\n\nUser Question: {prompt}\nAnswer:",
-        "stream": False
-    }
-    
+def check_and_increment_quota() -> bool:
+    """Checks daily request limit and resets if the date has changed."""
+    today_str = datetime.date.today().isoformat()
+    data = {"date": today_str, "count": 0}
+
+    if os.path.exists(TRACKER_FILE):
+        try:
+            with open(TRACKER_FILE, "r") as f:
+                loaded_data = json.load(f)
+                if loaded_data.get("date") == today_str:
+                    data = loaded_data
+        except Exception:
+            pass
+
+    if data["count"] >= DAILY_LIMIT:
+        return False
+
+    data["count"] += 1
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(OLLAMA_URL, json=payload, timeout=30) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data.get("response", "No response generated.").strip()
-                return f"⚠️ Ollama error: Received status code {resp.status}"
+        with open(TRACKER_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+    return True
+
+async def query_gemini(prompt: str) -> str:
+    """Sends a request to Google Gemini using the official SDK with rate-limiting."""
+    if not check_and_increment_quota():
+        return "⚠️ Daily AI request limit reached. Please try again tomorrow."
+
+    try:
+        client = genai.Client(genai_key=os.getenv("GEMINI"))
+        
+        # Combine system instructions and user prompt safely
+        full_prompt = f"{SYSTEM_PROMPT}\n\nUser Question: {prompt}\nAnswer:"
+        
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=full_prompt,
+        )
+        
+        if response and response.text:
+            return response.text.strip()
+        return "No response generated."
+        
     except Exception as e:
-        return f"⚠️ Could not reach local AI service: {e}"
+        return f"⚠️ Could not reach Gemini API: {e}"
 
 class AICog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -42,7 +77,7 @@ class AICog(commands.Cog):
     async def ask_slash(self, interaction: discord.Interaction, question: str):
         await interaction.response.defer()
         
-        answer = await query_ollama(question)
+        answer = await query_gemini(question)
         
         embed = discord.Embed(
             title="🤖 Achiftant's Response",

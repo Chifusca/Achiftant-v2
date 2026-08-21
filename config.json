@@ -15,5 +15,5 @@
   "owners": [195410723239624704],
 
   "volume": 10,
-  "auto_disconnect_seconds": 15
+  "auto_disconnect_seconds": 8
 }
