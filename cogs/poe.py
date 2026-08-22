@@ -1,7 +1,4 @@
-import aiohttp
-import asyncio
-import logging
-import discord
+import aiohttp, asyncio, logging, discord
 from discord import app_commands
 from discord.ext import commands
 from typing import Optional, Dict, Any, List
@@ -21,7 +18,6 @@ POPULAR_LEAGUES = [
         "Hardcore Allflame",
         "Standard",
         "Hardcore",
-        "Solo Self-Found",
     ]
 
 headers = {

@@ -5,3 +5,4 @@ discord.log
 .pyc
 bot-env
 todo
+.gitignore

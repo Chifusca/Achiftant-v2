@@ -1,10 +1,10 @@
-import discord, os, wavelink
+import discord, wavelink
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
+from main import Chif
 
-load_dotenv()
-Chif = os.getenv('CHIF')
+target_user_id = int(Chif)
 
 class FollowCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -18,7 +18,7 @@ class FollowCog(commands.Cog):
             return
 
         # 2. Only proceed if the member is the target user
-        if member.id == Chif:
+        if member.id != target_user_id:
             return
 
         # 3. Check if the user moved to a valid voice channel (covers both joining and switching channels)

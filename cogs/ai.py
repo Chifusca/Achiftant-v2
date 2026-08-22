@@ -1,7 +1,4 @@
-import datetime
-import json
-import os
-import discord
+import datetime, json, os, discord
 from discord import app_commands
 from discord.ext import commands
 from google import genai
@@ -9,7 +6,7 @@ from google import genai
 # Configuration constants
 DAILY_LIMIT = 950  # Safe threshold below the 1,000 free-tier limit
 TRACKER_FILE = "gemini_usage_tracker.json"
-MODEL_NAME = "gemini-2.5-flash"  # Lightweight, fast model for chat
+MODEL_NAME = "gemini-3.6-flash"  # Lightweight, fast model for chat
 
 # System prompt forcing short, targeted answers focused on tech/gaming
 SYSTEM_PROMPT = (
@@ -50,7 +47,7 @@ async def query_gemini(prompt: str) -> str:
         return "⚠️ Daily AI request limit reached. Please try again tomorrow."
 
     try:
-        client = genai.Client(genai_key=os.getenv("GEMINI"))
+        client = genai.Client(api_key=os.getenv("GEMINI"))
         
         # Combine system instructions and user prompt safely
         full_prompt = f"{SYSTEM_PROMPT}\n\nUser Question: {prompt}\nAnswer:"

@@ -9,6 +9,7 @@ load_dotenv()
 TOKEN = os.getenv('TOKEN')
 LavalinkTOKEN = os.getenv('LavalinkToken')
 CONFIG_FILE = os.getenv('CONFIG_FILE', 'config.json')
+Chif = os.getenv('CHIF')
 
 class Achiftant(commands.Bot):
     def __init__(self):

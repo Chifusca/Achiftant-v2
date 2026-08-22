@@ -121,69 +121,218 @@ class MusicCog(commands.Cog):
 
     # --- Slash Command: Play ---
     @app_commands.command(name="play", description="Play a track or add it to the queue")
-    @app_commands.describe(search="Song title or URL")
-    async def play(self,interaction: discord.Interaction, search: str):
+    @app_commands.describe(search="Song title, URL, or playlist URL")
+    async def play(self, interaction: discord.Interaction, search: str):
         await interaction.response.defer()
 
         if not interaction.user.voice or not interaction.user.voice.channel:
-            await interaction.followup.send("You must be in a voice channel to use this command.")
+            await interaction.followup.send(
+                "You must be in a voice channel to use this command."
+            )
             return
 
         channel = interaction.user.voice.channel
 
-        # Fetch existing player or connect to channel
+        # Fetch existing player or connect to the user's voice channel
         vc: wavelink.Player = interaction.guild.voice_client  # type: ignore
+
         if not vc:
             try:
                 vc = await channel.connect(cls=wavelink.Player)
             except Exception as e:
-                await interaction.followup.send(f"Could not connect to voice channel: {e}")
+                await interaction.followup.send(
+                    f"Could not connect to voice channel: {e}"
+                )
                 return
-        elif vc.channel != channel:
-            await vc.move_to(channel)
 
-        # Search for track
-        tracks: wavelink.Search = await wavelink.Playable.search(search)
-        if not tracks:
+        elif vc.channel != channel:
+            try:
+                await vc.move_to(channel)
+            except Exception as e:
+                await interaction.followup.send(
+                    f"Could not move to your voice channel: {e}"
+                )
+                return
+
+        # Search for track(s)
+        try:
+            results = await wavelink.Playable.search(search)
+        except Exception as e:
+            await interaction.followup.send(
+                f"Could not load the requested track or playlist: {e}"
+            )
+            return
+
+        if not results:
             await interaction.followup.send("No tracks found.")
             return
 
-        track = tracks[0] if isinstance(tracks, list) else tracks.tracks[0]
+        # ---------------------------------------------------------
+        # Playlist
+        # ---------------------------------------------------------
+        if isinstance(results, wavelink.Playlist):
+            playlist_tracks = list(results.tracks)
+
+            if not playlist_tracks:
+                await interaction.followup.send(
+                    "The playlist was found, but it contains no playable tracks."
+                )
+                return
+
+            # Add every playlist track to the queue.
+            for track in playlist_tracks:
+                await vc.queue.put_wait(track)
+
+            playlist_name = getattr(results, "name", None) or "Playlist"
+            track_count = len(playlist_tracks)
+
+            # If something is already playing, everything was added
+            # behind the currently playing track.
+            if vc.playing or vc.paused:
+                embed = discord.Embed(
+                    title="📝 Playlist Added to Queue",
+                    description=(
+                        f"**{playlist_name}**\n"
+                        f"Added **{track_count} track(s)** to the queue."
+                    ),
+                    color=discord.Color.green()
+                )
+
+                embed.add_field(
+                    name="Queue Position",
+                    value=f"#{len(vc.queue) - track_count + 1}",
+                    inline=True
+                )
+
+                embed.add_field(
+                    name="Queue Size",
+                    value=f"{len(vc.queue)} track(s)",
+                    inline=True
+                )
+
+                await interaction.followup.send(embed=embed)
+                return
+
+            # Nothing is playing, so start the first playlist track.
+            first_track = vc.queue.get()
+
+            try:
+                await vc.play(first_track)
+            except wavelink.LavalinkException:
+                await vc.disconnect()
+
+                try:
+                    vc = await channel.connect(cls=wavelink.Player)
+                    await vc.play(first_track)
+                except Exception as e:
+                    await interaction.followup.send(
+                        f"Could not start playlist playback: {e}"
+                    )
+                    return
+
+            embed = create_now_playing_embed(first_track, interaction.user)
+
+            embed.title = "🎵 Playing Playlist"
+            embed.add_field(
+                name="Playlist",
+                value=playlist_name,
+                inline=True
+            )
+            embed.add_field(
+                name="Tracks Loaded",
+                value=f"{track_count}",
+                inline=True
+            )
+
+            view = MusicControlView(player=vc)
+
+            await interaction.followup.send(
+                embed=embed,
+                view=view
+            )
+            return
+
+        # ---------------------------------------------------------
+        # Single track / search result
+        # ---------------------------------------------------------
+
+        # Playable.search() can return a list for search results.
+        if isinstance(results, list):
+            if not results:
+                await interaction.followup.send("No tracks found.")
+                return
+
+            track = results[0]
+        else:
+            track = results.tracks[0]
 
         try:
-            # Check if a track is currently playing or paused
+            # Something is already playing or paused.
             if vc.playing or vc.paused:
-                # Add to the queue instead of overriding
                 await vc.queue.put_wait(track)
-                
+
                 embed = discord.Embed(
                     title="📝 Added to Queue",
                     description=f"[{track.title}]({track.uri})",
                     color=discord.Color.green()
                 )
-                embed.add_field(name="Position in Queue", value=f"#{len(vc.queue)}", inline=True)
-                embed.add_field(name="Author", value=track.author or "Unknown", inline=True)
+
+                embed.add_field(
+                    name="Position in Queue",
+                    value=f"#{len(vc.queue)}",
+                    inline=True
+                )
+
+                embed.add_field(
+                    name="Author",
+                    value=track.author or "Unknown",
+                    inline=True
+                )
+
                 if track.artwork:
                     embed.set_thumbnail(url=track.artwork)
 
                 await interaction.followup.send(embed=embed)
+
             else:
-                # Nothing is playing, start immediately
+                # Nothing is playing, so start immediately.
                 await vc.play(track)
-                
-                embed = create_now_playing_embed(track, interaction.user)
+
+                embed = create_now_playing_embed(
+                    track,
+                    interaction.user
+                )
+
                 view = MusicControlView(player=vc)
-                await interaction.followup.send(embed=embed, view=view)
+
+                await interaction.followup.send(
+                    embed=embed,
+                    view=view
+                )
 
         except wavelink.LavalinkException:
-            # Handle reconnection if Lavalink session expired
-            await vc.disconnect()
-            vc = await channel.connect(cls=wavelink.Player)
-            await vc.play(track)
-            
-            embed = create_now_playing_embed(track, interaction.user)
-            view = MusicControlView(player=vc)
-            await interaction.followup.send(embed=embed, view=view)
+            # Handle a potentially expired Lavalink session.
+            try:
+                await vc.disconnect()
+                vc = await channel.connect(cls=wavelink.Player)
+                await vc.play(track)
+
+                embed = create_now_playing_embed(
+                    track,
+                    interaction.user
+                )
+
+                view = MusicControlView(player=vc)
+
+                await interaction.followup.send(
+                    embed=embed,
+                    view=view
+                )
+
+            except Exception as e:
+                await interaction.followup.send(
+                    f"Could not recover the music player: {e}"
+                )
 
     @app_commands.command(name="queue", description="Display the currently playing song and upcoming music queue")
     async def queue(self,interaction: discord.Interaction):
